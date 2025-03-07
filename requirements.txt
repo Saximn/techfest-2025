@@ -1,0 +1,7 @@
+Flask
+transformers
+torch
+requests
+Pillow
+lime
+numpy
