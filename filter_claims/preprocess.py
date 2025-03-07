@@ -13,9 +13,9 @@ def split_data(df, train_size=0.95):
     X = df.drop("label", axis=1)
     Y = df["label"]
     X_train, X_test, y_train, y_test = train_test_split(X, Y, train_size=train_size, random_state=42, stratify=Y)
-    full_X = pd.concat([X_train, X_test], axis=1)
-    full_Y = pd.concat([y_train, y_test], axis=1)
-    return full_X, full_Y
+    full_train = pd.concat([X_train, y_train], axis=1)
+    full_test = pd.concat([X_test, y_test], axis=1)
+    return full_train, full_test
 
 
 def save_data(df, data_path):
