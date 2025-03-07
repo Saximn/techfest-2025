@@ -16,10 +16,10 @@ BERT-LIME Fact Checker is a Chrome extension combined with a backend Flask servi
 - A valid API key for the [Google Fact Checker API](https://developers.google.com/fact-check/tools/api)
 
 ### Clone the Repository
-```bash
+```
 git clone https://github.com/YourUsername/BERT-LIME-FactChecker.git
 cd BERT-LIME-FactChecker
-
+'''
 
 Backend Setup
 Install Python Dependencies
