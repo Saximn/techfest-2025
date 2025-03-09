@@ -7,7 +7,7 @@ function Popup() {
   );
 
   const handleAnalyze = () => {
-    setStatus("Analyzing...");
+    setStatus("Analysing...");
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       chrome.tabs.sendMessage(
         tabs[0].id,
@@ -16,7 +16,7 @@ function Popup() {
           if (response && response.done) {
             setStatus("Analysis complete!");
           } else {
-            setStatus("Failed to analyze content.");
+            setStatus("Failed to analyse content.");
           }
         }
       );
@@ -55,7 +55,7 @@ function Popup() {
     <div style={containerStyle}>
       <h1 style={headingStyle}>BERT-LIME Fact Checker</h1>
       <button style={buttonStyle} onClick={handleAnalyze}>
-        Analyze Article
+        Analyse Article
       </button>
       <p style={statusStyle}>{status}</p>
     </div>

@@ -24,6 +24,11 @@ async function highlightFakeNews() {
     );
 
     const results = await Promise.all(classificationPromises);
+    results.forEach((result) => {
+      console.log(`Sentence: "${result.sentence}"`);
+      console.log(`Label: ${result.label}`);
+      console.log(`Score: ${result.score}`);
+    });
 
     // Create a new paragraph element to hold the highlighted sentences
     const newParagraph = document.createElement("p");
