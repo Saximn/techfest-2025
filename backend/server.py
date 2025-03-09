@@ -2,6 +2,9 @@ import os
 import logging
 from flask import Flask, request, jsonify
 from transformers import pipeline
+from transformers import DistilBertForSequenceClassification, DistilBertTokenizer
+model = DistilBertForSequenceClassification.from_pretrained("./fine_tuned_model")
+tokenizer = DistilBertTokenizer.from_pretrained("./fine_tuned_model")
 from lime.lime_text import LimeTextExplainer
 import requests
 from PIL import Image
