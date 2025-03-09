@@ -3,12 +3,12 @@ import logging
 from flask import Flask, request, jsonify
 from transformers import pipeline
 from transformers import DistilBertForSequenceClassification, DistilBertTokenizer
-model = DistilBertForSequenceClassification.from_pretrained("./fine_tuned_model")
-tokenizer = DistilBertTokenizer.from_pretrained("./fine_tuned_model")
 from lime.lime_text import LimeTextExplainer
 import requests
 from PIL import Image
 from io import BytesIO
+from peft import PeftModel
+import torch
 from flask_cors import CORS
 
 # Setup logging
@@ -20,9 +20,27 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Load environment variables and models
 API_KEY = os.getenv("FACT_CHECK_API_KEY")
-classifier = pipeline("text-classification", model="openai-community/roberta-base-openai-detector", top_k=2)
+model_name = "distilbert-base-uncased"
+model = DistilBertForSequenceClassification.from_pretrained(model_name)
+model.eval()
+tokenizer = DistilBertTokenizer.from_pretrained(model_name)
+lora_model = PeftModel.from_pretrained(model, "./fine_tuned_model")
 image_classifier = pipeline("image-classification", model="google/vit-base-patch16-224")
 explainer = LimeTextExplainer(class_names=["REAL", "FAKE"])
+
+def predict_proba(text_list):
+    # Tokenize
+    inputs = tokenizer(text_list, padding=True, truncation=True, return_tensors='pt')
+    
+    # Move to GPU if available
+    # inputs = inputs.to("cuda")
+    with torch.no_grad():
+        # outputs = model(**inputs.to("cuda"))
+        outputs = model(**inputs)
+    
+    # Convert logits -> probabilities
+    probs = torch.softmax(outputs.logits, dim=1).cpu().numpy()
+    return probs
 
 @app.route('/classify', methods=['POST'])
 def classify_sentence():
@@ -33,28 +51,40 @@ def classify_sentence():
         if not text:
             return jsonify({"error": "No text provided"}), 400
 
-        # Run the classifier pipeline
-        classification_results = classifier([text])  # Ensure input is passed as a list
+        inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+        outputs = model(**inputs)
+        logits = outputs.logits
+        probs = torch.softmax(logits, dim=1)
+        if probs[0][0] > probs[0][1]:
+            label = "REAL"
+            score = probs[0][0].item()
+            explanation = explainer.explain_instance(text, predict_proba, num_features=5)
+            weights_for_fake = explanation.as_list(label=1)
+            sorted_list = sorted(weights_for_fake, key=lambda x: x[1], reverse=True)
+            top_3_suspicious = []
+            for token, weight in weights_for_fake:
+                if weight > 0:                  # Only include words that push the model toward FAKE
+                    top_3_suspicious.append(token)
+                if len(top_3_suspicious) == 3:
+                    break
+            # 4. Build a sentence from these tokens
+            if len(top_3_suspicious) > 0:
+                # e.g. "The words token1, token2, token3 are suspicious."
+                suspicious_str = ", ".join(top_3_suspicious)
+            else:
+                suspicious_str = ""
+        else:
+            label = "FAKE"
+            score = probs[0][1].item()
+            suspicious_str = ""
+        if suspicious_str:
+            explanation = f"The words {suspicious_str} are suspicious."
+        else:
+            explanation = "No suspicious words found."
+        
+       
 
-        # `classifier` returns a list of dictionaries
-        if not classification_results or not isinstance(classification_results, list):
-            raise ValueError("Invalid output from classifier")
-
-        # Initialize scores
-        real_score, fake_score = 0.0, 0.0
-
-        # Iterate through the list of results
-        for result in classification_results[0]:  # Access the first (and only) item in the list
-            if result["label"] == "REAL":
-                real_score = result["score"]
-            elif result["label"] == "FAKE":
-                fake_score = result["score"]
-
-        # Determine the final label and highest score
-        label = "REAL" if real_score >= fake_score else "FAKE"
-        score = max(real_score, fake_score)
-
-        return jsonify({"label": label, "score": score})
+        return jsonify({"label": label, "score": score, "explanation": explanation})
     except Exception as e:
         logging.error(f"Classification error: {e}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
